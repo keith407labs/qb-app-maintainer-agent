@@ -1,15 +1,3 @@
-# App-specific data — never publish
-qb_schema_*.json
-quickbase-agent-memory/
-checks/
-scripts/
-daily_refresh.sh
-snapshots/
-
-# Secrets
-.env
-.qb_env
-
 # OS / editor
 .DS_Store
 __pycache__/
