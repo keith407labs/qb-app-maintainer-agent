@@ -28,6 +28,7 @@ import requests
 import yaml
 
 BASE = "https://api.quickbase.com/v1/"
+TABLES_FILE = "tables.yaml"
 REQUIRED_FIELDS = {"id", "title"}
 # Declarative checks (no executor) additionally require: table, filter
 DECLARATIVE_REQUIRED = {"table", "filter"}
@@ -68,14 +69,34 @@ def discover_checks(root: Path) -> list[Path]:
                   if not p.parts[len(root.parts):][0].startswith("_"))
 
 
-def load_spec(path: Path) -> dict:
+def load_table_map(path: Path) -> dict:
+    """Load table name → DBID mapping from tables.yaml."""
+    if not path.is_file():
+        return {}
+    with open(path) as f:
+        return yaml.safe_load(f) or {}
+
+
+def resolve_table(spec: dict, table_map: dict, path: Path) -> None:
+    """Resolve a table alias to its DBID, if a mapping exists."""
+    table = spec.get("table")
+    if table and table in table_map:
+        spec["table"] = table_map[table]
+
+
+def load_spec(path: Path, table_map: dict) -> dict:
     with open(path) as f:
         spec = yaml.safe_load(f) or {}
     missing = REQUIRED_FIELDS - set(spec)
     if missing:
         raise ValueError(f"{path}: missing required fields {sorted(missing)}")
     executor = spec.get("executor", "query")
+    # Resolve table aliases in params (for scripted checks)
+    for key, val in spec.get("params", {}).items():
+        if isinstance(val, str) and val in table_map:
+            spec["params"][key] = table_map[val]
     if executor == "query":
+        resolve_table(spec, table_map, path)
         extra_missing = DECLARATIVE_REQUIRED - set(spec)
     elif executor == "python":
         extra_missing = SCRIPTED_REQUIRED - set(spec)
@@ -264,11 +285,13 @@ def main() -> int:
         print(f"ERROR: checks directory not found: {checks_dir}", file=sys.stderr)
         return 2
 
+    table_map = load_table_map(Path(TABLES_FILE))
+
     paths = discover_checks(checks_dir)
     specs: list[dict] = []
     for path in paths:
         try:
-            specs.append(load_spec(path))
+            specs.append(load_spec(path, table_map))
         except Exception as e:
             print(f"ERROR loading {path}: {e}", file=sys.stderr)
             return 2
