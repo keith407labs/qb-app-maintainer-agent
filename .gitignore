@@ -1,0 +1,18 @@
+# App-specific data — never publish
+qb_schema_*.json
+quickbase-agent-memory/
+checks/
+scripts/
+daily_refresh.sh
+snapshots/
+
+# Secrets
+.qb_env
+
+# OS / editor
+.DS_Store
+__pycache__/
+*.pyc
+
+# Claude Code local settings
+.claude/
